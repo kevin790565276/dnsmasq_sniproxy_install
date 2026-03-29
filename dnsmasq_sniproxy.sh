@@ -230,7 +230,6 @@ install_dependencies(){
                 error_detect_depends "apt-get -y install ${depend}"
             done
             error_detect_depends "apt-get -y install build-essential"
-            fi
             
             echo -e "[${green}Info${plain}] 手动编译 PCRE3 以确保 sniproxy 兼容性..."
             cd /tmp
