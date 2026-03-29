@@ -64,21 +64,6 @@ getversion(){
     fi
 }
 
-debianversion(){
-    if check_sys sysRelease debian; then
-        local code=$1
-        local version="$(getversion)"
-        local main_ver=${version%%.*}
-        if [ "$main_ver" == "$code" ]; then
-            return 0
-        else
-            return 1
-        fi
-    else
-        return 1
-    fi
-}
-
 centosversion(){
     if check_sys sysRelease centos; then
         local code=$1
@@ -145,46 +130,14 @@ install_dependencies(){
             error_detect_depends "yum -y groupinstall development"
         fi
     elif check_sys packageManager apt; then
+        apt_depends=(
+            autotools-dev cdbs debhelper dh-autoreconf dpkg-dev gettext libev-dev libpcre3-dev libudns-dev pkg-config fakeroot devscripts autoconf
+        )
         apt-get -y update
-        
-        if debianversion 13; then
-            echo -e "[${green}Info${plain}] 检测到 Debian 13+，使用 PCRE2 或手动编译 PCRE3..."
-            apt_depends=(
-                autotools-dev cdbs debhelper dh-autoreconf dpkg-dev gettext libev-dev libpcre2-dev libudns-dev pkg-config fakeroot devscripts autoconf
-            )
-            for depend in ${apt_depends[@]}; do
-                error_detect_depends "apt-get -y install ${depend}"
-            done
-            error_detect_depends "apt-get -y install build-essential"
-            
-            echo -e "[${green}Info${plain}] 手动编译 PCRE3 以确保 sniproxy 兼容性..."
-            cd /tmp
-            if [ -e pcre-8.45 ]; then
-                rm -rf pcre-8.45
-            fi
-            wget -q -t3 -T60 -O /tmp/pcre-8.45.tar.gz https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.gz/download
-            if [ $? -eq 0 ]; then
-                tar -zxf pcre-8.45.tar.gz
-                cd pcre-8.45
-                ./configure --prefix=/usr/local --enable-utf8 --enable-unicode-properties > /dev/null 2>&1
-                make > /dev/null 2>&1
-                make install > /dev/null 2>&1
-                ldconfig
-                echo -e "[${green}Info${plain}] PCRE3 编译安装完成"
-                cd /tmp
-                rm -rf pcre-8.45 pcre-8.45.tar.gz
-            else
-                echo -e "[${yellow}Warning${plain}] PCRE3 下载失败，尝试使用系统 PCRE2 库"
-            fi
-        else
-            apt_depends=(
-                autotools-dev cdbs debhelper dh-autoreconf dpkg-dev gettext libev-dev libpcre3-dev libudns-dev pkg-config fakeroot devscripts autoconf
-            )
-            for depend in ${apt_depends[@]}; do
-                error_detect_depends "apt-get -y install ${depend}"
-            done
-            error_detect_depends "apt-get -y install build-essential"
-        fi
+        for depend in ${apt_depends[@]}; do
+            error_detect_depends "apt-get -y install ${depend}"
+        done
+        error_detect_depends "apt-get -y install build-essential"
     fi
 }
 install_dependencies

@@ -165,21 +165,6 @@ config_firewall(){
     fi
 }
 
-debianversion(){
-    if check_sys sysRelease debian; then
-        local code=$1
-        local version="$(getversion)"
-        local main_ver=${version%%.*}
-        if [ "$main_ver" == "$code" ]; then
-            return 0
-        else
-            return 1
-        fi
-    else
-        return 1
-    fi
-}
-
 install_dependencies(){
     echo "安装依赖软件..."
     if check_sys packageManager yum; then
@@ -219,53 +204,21 @@ install_dependencies(){
             fi
         fi
     elif check_sys packageManager apt; then
-        apt-get -y update
-        
-        if debianversion 13; then
-            echo -e "[${green}Info${plain}] 检测到 Debian 13+，使用 PCRE2 或手动编译 PCRE3..."
+        if [[ ${fastmode} = "1" ]]; then
             apt_depends=(
-                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts automake dh-autoreconf pkg-config
+                curl gettext libev-dev libpcre2-dev libudns-dev
             )
-            for depend in ${apt_depends[@]}; do
-                error_detect_depends "apt-get -y install ${depend}"
-            done
-            error_detect_depends "apt-get -y install build-essential"
-            
-            echo -e "[${green}Info${plain}] 手动编译 PCRE3 以确保 sniproxy 兼容性..."
-            cd /tmp
-            if [ -e pcre-8.45 ]; then
-                rm -rf pcre-8.45
-            fi
-            wget -q -t3 -T60 -O /tmp/pcre-8.45.tar.gz https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.gz/download
-            if [ $? -eq 0 ]; then
-                tar -zxf pcre-8.45.tar.gz
-                cd pcre-8.45
-                ./configure --prefix=/usr/local --enable-utf8 --enable-unicode-properties > /dev/null 2>&1
-                make > /dev/null 2>&1
-                make install > /dev/null 2>&1
-                ldconfig
-                echo -e "[${green}Info${plain}] PCRE3 编译安装完成"
-                cd /tmp
-                rm -rf pcre-8.45 pcre-8.45.tar.gz
-            else
-                echo -e "[${yellow}Warning${plain}] PCRE3 下载失败，尝试使用系统 PCRE2 库"
-            fi
         else
-            if [[ ${fastmode} = "1" ]]; then
-                apt_depends=(
-                    curl gettext libev-dev libpcre3-dev libudns-dev
-                )
-            else
-                apt_depends=(
-                    autotools-dev cdbs curl gettext libev-dev libpcre3-dev libudns-dev autoconf devscripts
-                )
-            fi
-            for depend in ${apt_depends[@]}; do
-                error_detect_depends "apt-get -y install ${depend}"
-            done
-            if [[ ${fastmode} = "0" ]]; then
-                error_detect_depends "apt-get -y install build-essential"
-            fi
+            apt_depends=(
+                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts
+            )
+        fi
+        apt-get -y update
+        for depend in ${apt_depends[@]}; do
+            error_detect_depends "apt-get -y install ${depend}"
+        done
+        if [[ ${fastmode} = "0" ]]; then
+            error_detect_depends "apt-get -y install build-essential"
         fi
     fi
 }
@@ -325,38 +278,12 @@ install_dnsmasq(){
         yes|cp -f /tmp/dnsmasq-2.92/src/dnsmasq /usr/sbin/dnsmasq && chmod +x /usr/sbin/dnsmasq
     fi
     [ ! -f /usr/sbin/dnsmasq ] && echo -e "[${red}Error${plain}] 安装dnsmasq出现问题，请检查." && exit 1
-    
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    
-    if [ -f "${SCRIPT_DIR}/dnsmasq.conf" ]; then
-        cp -f "${SCRIPT_DIR}/dnsmasq.conf" /etc/dnsmasq.d/custom_netflix.conf
-        echo -e "[${green}Info${plain}] 使用本地 dnsmasq.conf 配置文件"
-    else
-        download /etc/dnsmasq.d/custom_netflix.conf https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/dnsmasq.conf
-    fi
-    
-    if [ -f "${SCRIPT_DIR}/proxy-domains.txt" ]; then
-        cp -f "${SCRIPT_DIR}/proxy-domains.txt" /tmp/proxy-domains.txt
-        echo -e "[${green}Info${plain}] 使用本地 proxy-domains.txt 配置文件"
-    else
-        download /tmp/proxy-domains.txt https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/proxy-domains.txt
-    fi
-    
-    echo -e "[${green}Info${plain}] 正在补全 dnsmasq 配置文件..."
-    domain_count=0
-    while IFS= read -r line; do
-        # 跳过空行和注释行
-        if [ -z "$line" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
-            continue
-        fi
-        # 去除首尾空白
-        domain=$(echo "$line" | xargs)
-        if [ -n "$domain" ]; then
-            printf "address=/${domain}/${publicip}\n" >> /etc/dnsmasq.d/custom_netflix.conf
-            domain_count=$((domain_count + 1))
-        fi
-    done < /tmp/proxy-domains.txt
-    echo -e "[${green}Info${plain}] 已添加 ${domain_count} 个域名到 dnsmasq 配置文件"
+    download /etc/dnsmasq.d/custom_netflix.conf https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/dnsmasq.conf
+    download /tmp/proxy-domains.txt https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/proxy-domains.txt
+    for domain in $(cat /tmp/proxy-domains.txt); do
+        printf "address=/${domain}/${publicip}\n"\
+        | tee -a /etc/dnsmasq.d/custom_netflix.conf > /dev/null 2>&1
+    done
     [ "$(grep -x -E "(conf-dir=/etc/dnsmasq.d|conf-dir=/etc/dnsmasq.d,.bak|conf-dir=/etc/dnsmasq.d/,\*.conf|conf-dir=/etc/dnsmasq.d,.rpmnew,.rpmsave,.rpmorig)" /etc/dnsmasq.conf)" ] || echo -e "\nconf-dir=/etc/dnsmasq.d" >> /etc/dnsmasq.conf
     echo "启动 Dnsmasq 服务..."
     if check_sys packageManager yum; then
@@ -377,9 +304,7 @@ install_dnsmasq(){
         systemctl restart dnsmasq
     fi
     cd /tmp
-    rm -rf /tmp/dnsmasq-2.92 /tmp/dnsmasq-2.92.tar.gz
-    # 保留 proxy-domains.txt 以便 sniproxy 使用
-    # rm -rf /tmp/proxy-domains.txt
+    rm -rf /tmp/dnsmasq-2.92 /tmp/dnsmasq-2.92.tar.gz /tmp/proxy-domains.txt
     echo -e "[${green}Info${plain}] dnsmasq install complete..."
 }
 
@@ -387,12 +312,6 @@ install_sniproxy(){
     for aport in 80 443; do
         netstat -a -n -p | grep LISTEN | grep -P "\d+\.\d+\.\d+\.\d+:${aport}\s+" > /dev/null && echo -e "[${red}Error${plain}] required port ${aport} already in use\n" && exit 1
     done
-    
-    if check_sys packageManager apt && debianversion 13; then
-        echo -e "[${green}Info${plain}] 检测到 Debian 13+，强制使用源码编译模式..."
-        fastmode=0
-    fi
-    
     install_dependencies
     echo "安装SNI Proxy..."
     if check_sys packageManager yum; then
@@ -452,13 +371,6 @@ install_sniproxy(){
                 echo -e "${red}暂不支持${bit}内核，请使用编译模式安装！${plain}" && exit 1
             fi
         else
-            if check_sys packageManager apt && debianversion 13; then
-                export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
-                export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-                export CFLAGS="-I/usr/local/include $CFLAGS"
-                export LDFLAGS="-L/usr/local/lib $LDFLAGS"
-                echo -e "[${green}Info${plain}] 使用手动编译的 PCRE3 库进行编译..."
-            fi
             env NAME="sniproxy" DEBFULLNAME="sniproxy" DEBEMAIL="sniproxy@example.com" EMAIL="sniproxy@example.com" ./autogen.sh && ./configure --prefix=/usr && make && make install
         fi  
         download /etc/systemd/system/sniproxy.service https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/sniproxy.service
@@ -466,63 +378,10 @@ install_sniproxy(){
         [ ! -f /etc/systemd/system/sniproxy.service ] && echo -e "[${red}Error${plain}] 下载Sniproxy启动文件出现问题，请检查." && exit 1
     fi
     [ ! -f /usr/sbin/sniproxy ] && echo -e "[${red}Error${plain}] 安装Sniproxy出现问题，请检查." && exit 1
-    
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    
-    if [ -f "${SCRIPT_DIR}/sniproxy.conf" ]; then
-        cp -f "${SCRIPT_DIR}/sniproxy.conf" /etc/sniproxy.conf
-        echo -e "[${green}Info${plain}] 使用本地 sniproxy.conf 配置文件"
-    else
-        download /etc/sniproxy.conf https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/sniproxy.conf
-    fi
-    
-    if [ -f "${SCRIPT_DIR}/proxy-domains.txt" ]; then
-        cp -f "${SCRIPT_DIR}/proxy-domains.txt" /tmp/sniproxy-domains.txt
-        echo -e "[${green}Info${plain}] 使用本地 proxy-domains.txt 配置文件"
-    else
-        download /tmp/sniproxy-domains.txt https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/proxy-domains.txt
-    fi
-    
-    if [ ! -f /tmp/sniproxy-domains.txt ] || [ ! -s /tmp/sniproxy-domains.txt ]; then
-        echo -e "[${red}Error${plain}] sniproxy-domains.txt 文件不存在或为空，无法补全配置"
-        exit 1
-    fi
-    
-    echo -e "[${green}Info${plain}] 正在补全 sniproxy 配置文件..."
-    
-    # 备份原配置
-    cp /etc/sniproxy.conf /etc/sniproxy.conf.bak
-    
-    # 创建临时文件用于构建新配置
-    temp_conf=$(mktemp)
-    domain_count=0
-    
-    # 读取原配置，在 table { 后插入域名
-    while IFS= read -r line; do
-        echo "$line" >> "$temp_conf"
-        
-        # 如果找到 table { 行，在其后插入域名
-        if echo "$line" | grep -q '^[[:space:]]*table[[:space:]]*{'; then
-            while IFS= read -r domain_line; do
-                # 跳过空行和注释行
-                if [ -z "$domain_line" ] || [[ "$domain_line" =~ ^[[:space:]]*# ]]; then
-                    continue
-                fi
-                # 去除首尾空白
-                domain=$(echo "$domain_line" | xargs)
-                if [ -n "$domain" ]; then
-                    escaped_domain=$(echo "$domain" | sed 's/\./\\\./g')
-                    echo "    .*${escaped_domain}\$ \*" >> "$temp_conf"
-                    domain_count=$((domain_count + 1))
-                fi
-            done < /tmp/sniproxy-domains.txt
-        fi
-    done < /etc/sniproxy.conf.bak
-    
-    # 替换原配置
-    mv "$temp_conf" /etc/sniproxy.conf
-    
-    echo -e "[${green}Info${plain}] 已添加 ${domain_count} 个域名到 sniproxy 配置文件"
+    download /etc/sniproxy.conf https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/sniproxy.conf
+    download /tmp/sniproxy-domains.txt https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/proxy-domains.txt
+    sed -i -e 's/\./\\\./g' -e 's/^/    \.\*/' -e 's/$/\$ \*/' /tmp/sniproxy-domains.txt || (echo -e "[${red}Error:${plain}] Failed to configuration sniproxy." && exit 1)
+    sed -i '/table {/r /tmp/sniproxy-domains.txt' /etc/sniproxy.conf || (echo -e "[${red}Error:${plain}] Failed to configuration sniproxy." && exit 1)
     if [ ! -e /var/log/sniproxy ]; then
         mkdir /var/log/sniproxy
     fi
