@@ -224,7 +224,7 @@ install_dependencies(){
         if debianversion 13; then
             echo -e "[${green}Info${plain}] 检测到 Debian 13+，使用 PCRE2 或手动编译 PCRE3..."
             apt_depends=(
-                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts automake dh-autoreconf
+                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts automake dh-autoreconf pkg-config
             )
             for depend in ${apt_depends[@]}; do
                 error_detect_depends "apt-get -y install ${depend}"
