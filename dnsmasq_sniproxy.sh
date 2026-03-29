@@ -512,7 +512,7 @@ install_sniproxy(){
                 domain=$(echo "$domain_line" | xargs)
                 if [ -n "$domain" ]; then
                     escaped_domain=$(echo "$domain" | sed 's/\./\\\./g')
-                    echo "    ^${escaped_domain}\$ *" >> "$temp_conf"
+                    echo "    .*${escaped_domain}\$ \*" >> "$temp_conf"
                     domain_count=$((domain_count + 1))
                 fi
             done < /tmp/sniproxy-domains.txt
