@@ -369,7 +369,9 @@ install_dnsmasq(){
         systemctl restart dnsmasq
     fi
     cd /tmp
-    rm -rf /tmp/dnsmasq-2.92 /tmp/dnsmasq-2.92.tar.gz /tmp/proxy-domains.txt
+    rm -rf /tmp/dnsmasq-2.92 /tmp/dnsmasq-2.92.tar.gz
+    # 保留 proxy-domains.txt 以便 sniproxy 使用
+    # rm -rf /tmp/proxy-domains.txt
     echo -e "[${green}Info${plain}] dnsmasq install complete..."
 }
 
