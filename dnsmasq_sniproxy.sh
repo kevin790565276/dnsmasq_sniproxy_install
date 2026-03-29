@@ -374,6 +374,12 @@ install_sniproxy(){
     for aport in 80 443; do
         netstat -a -n -p | grep LISTEN | grep -P "\d+\.\d+\.\d+\.\d+:${aport}\s+" > /dev/null && echo -e "[${red}Error${plain}] required port ${aport} already in use\n" && exit 1
     done
+    
+    if check_sys packageManager apt && debianversion 13; then
+        echo -e "[${green}Info${plain}] 检测到 Debian 13+，强制使用源码编译模式..."
+        fastmode=0
+    fi
+    
     install_dependencies
     echo "安装SNI Proxy..."
     if check_sys packageManager yum; then
@@ -389,12 +395,6 @@ install_sniproxy(){
     fi
     bit=`uname -m`
     cd /tmp
-    
-    if check_sys packageManager apt && debianversion 13; then
-        echo -e "[${green}Info${plain}] 检测到 Debian 13+，强制使用源码编译模式..."
-        fastmode=0
-    fi
-    
     if [[ ${fastmode} = "0" ]]; then
         if [ -e sniproxy-0.6.1 ]; then
             rm -rf sniproxy-0.6.1
