@@ -344,10 +344,18 @@ install_dnsmasq(){
     
     echo -e "[${green}Info${plain}] 正在补全 dnsmasq 配置文件..."
     domain_count=0
-    for domain in $(cat /tmp/proxy-domains.txt); do
-        printf "address=/${domain}/${publicip}\n" >> /etc/dnsmasq.d/custom_netflix.conf
-        domain_count=$((domain_count + 1))
-    done
+    while IFS= read -r line; do
+        # 跳过空行和注释行
+        if [ -z "$line" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
+        # 去除首尾空白
+        domain=$(echo "$line" | xargs)
+        if [ -n "$domain" ]; then
+            printf "address=/${domain}/${publicip}\n" >> /etc/dnsmasq.d/custom_netflix.conf
+            domain_count=$((domain_count + 1))
+        fi
+    done < /tmp/proxy-domains.txt
     echo -e "[${green}Info${plain}] 已添加 ${domain_count} 个域名到 dnsmasq 配置文件"
     [ "$(grep -x -E "(conf-dir=/etc/dnsmasq.d|conf-dir=/etc/dnsmasq.d,.bak|conf-dir=/etc/dnsmasq.d/,\*.conf|conf-dir=/etc/dnsmasq.d,.rpmnew,.rpmsave,.rpmorig)" /etc/dnsmasq.conf)" ] || echo -e "\nconf-dir=/etc/dnsmasq.d" >> /etc/dnsmasq.conf
     echo "启动 Dnsmasq 服务..."
@@ -495,7 +503,13 @@ install_sniproxy(){
         
         # 如果找到 table { 行，在其后插入域名
         if echo "$line" | grep -q '^[[:space:]]*table[[:space:]]*{'; then
-            while IFS= read -r domain; do
+            while IFS= read -r domain_line; do
+                # 跳过空行和注释行
+                if [ -z "$domain_line" ] || [[ "$domain_line" =~ ^[[:space:]]*# ]]; then
+                    continue
+                fi
+                # 去除首尾空白
+                domain=$(echo "$domain_line" | xargs)
                 if [ -n "$domain" ]; then
                     escaped_domain=$(echo "$domain" | sed 's/\./\\\./g')
                     echo "    ^${escaped_domain}\$ *" >> "$temp_conf"
