@@ -341,10 +341,14 @@ install_dnsmasq(){
     else
         download /tmp/proxy-domains.txt https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/proxy-domains.txt
     fi
+    
+    echo -e "[${green}Info${plain}] 正在补全 dnsmasq 配置文件..."
+    domain_count=0
     for domain in $(cat /tmp/proxy-domains.txt); do
-        printf "address=/${domain}/${publicip}\n"\
-        | tee -a /etc/dnsmasq.d/custom_netflix.conf > /dev/null 2>&1
+        printf "address=/${domain}/${publicip}\n" >> /etc/dnsmasq.d/custom_netflix.conf
+        domain_count=$((domain_count + 1))
     done
+    echo -e "[${green}Info${plain}] 已添加 ${domain_count} 个域名到 dnsmasq 配置文件"
     [ "$(grep -x -E "(conf-dir=/etc/dnsmasq.d|conf-dir=/etc/dnsmasq.d,.bak|conf-dir=/etc/dnsmasq.d/,\*.conf|conf-dir=/etc/dnsmasq.d,.rpmnew,.rpmsave,.rpmorig)" /etc/dnsmasq.conf)" ] || echo -e "\nconf-dir=/etc/dnsmasq.d" >> /etc/dnsmasq.conf
     echo "启动 Dnsmasq 服务..."
     if check_sys packageManager yum; then
@@ -468,8 +472,22 @@ install_sniproxy(){
     else
         download /tmp/sniproxy-domains.txt https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/proxy-domains.txt
     fi
-    sed -i -e 's/\./\\\./g' -e 's/^/    \.\*/' -e 's/$/\$ \*/' /tmp/sniproxy-domains.txt || (echo -e "[${red}Error:${plain}] Failed to configuration sniproxy." && exit 1)
-    sed -i '/table {/r /tmp/sniproxy-domains.txt' /etc/sniproxy.conf || (echo -e "[${red}Error:${plain}] Failed to configuration sniproxy." && exit 1)
+    
+    if [ ! -f /tmp/sniproxy-domains.txt ] || [ ! -s /tmp/sniproxy-domains.txt ]; then
+        echo -e "[${red}Error${plain}] sniproxy-domains.txt 文件不存在或为空，无法补全配置"
+        exit 1
+    fi
+    
+    echo -e "[${green}Info${plain}] 正在补全 sniproxy 配置文件..."
+    domain_count=0
+    while IFS= read -r domain; do
+        if [ -n "$domain" ]; then
+            escaped_domain=$(echo "$domain" | sed 's/\./\\\./g')
+            echo "    \.\*${escaped_domain}\$ \*" >> /etc/sniproxy.conf
+            domain_count=$((domain_count + 1))
+        fi
+    done < /tmp/sniproxy-domains.txt
+    echo -e "[${green}Info${plain}] 已添加 ${domain_count} 个域名到 sniproxy 配置文件"
     if [ ! -e /var/log/sniproxy ]; then
         mkdir /var/log/sniproxy
     fi
