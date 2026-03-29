@@ -479,14 +479,33 @@ install_sniproxy(){
     fi
     
     echo -e "[${green}Info${plain}] 正在补全 sniproxy 配置文件..."
+    
+    # 备份原配置
+    cp /etc/sniproxy.conf /etc/sniproxy.conf.bak
+    
+    # 创建临时文件用于构建新配置
+    temp_conf=$(mktemp)
     domain_count=0
-    while IFS= read -r domain; do
-        if [ -n "$domain" ]; then
-            escaped_domain=$(echo "$domain" | sed 's/\./\\\./g')
-            echo "    \.\*${escaped_domain}\$ \*" >> /etc/sniproxy.conf
-            domain_count=$((domain_count + 1))
+    
+    # 读取原配置，在 table { 后插入域名
+    while IFS= read -r line; do
+        echo "$line" >> "$temp_conf"
+        
+        # 如果找到 table { 行，在其后插入域名
+        if echo "$line" | grep -q '^[[:space:]]*table[[:space:]]*{'; then
+            while IFS= read -r domain; do
+                if [ -n "$domain" ]; then
+                    escaped_domain=$(echo "$domain" | sed 's/\./\\\./g')
+                    echo "    ^${escaped_domain}\$ *" >> "$temp_conf"
+                    domain_count=$((domain_count + 1))
+                fi
+            done < /tmp/sniproxy-domains.txt
         fi
-    done < /tmp/sniproxy-domains.txt
+    done < /etc/sniproxy.conf.bak
+    
+    # 替换原配置
+    mv "$temp_conf" /etc/sniproxy.conf
+    
     echo -e "[${green}Info${plain}] 已添加 ${domain_count} 个域名到 sniproxy 配置文件"
     if [ ! -e /var/log/sniproxy ]; then
         mkdir /var/log/sniproxy
