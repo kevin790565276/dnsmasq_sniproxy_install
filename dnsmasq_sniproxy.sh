@@ -223,20 +223,13 @@ install_dependencies(){
         
         if debianversion 13; then
             echo -e "[${green}Info${plain}] 检测到 Debian 13+，使用 PCRE2 或手动编译 PCRE3..."
-            if [[ ${fastmode} = "1" ]]; then
-                apt_depends=(
-                    curl gettext libev-dev libpcre2-dev libudns-dev
-                )
-            else
-                apt_depends=(
-                    autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts
-                )
-            fi
+            apt_depends=(
+                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts automake dh-autoreconf
+            )
             for depend in ${apt_depends[@]}; do
                 error_detect_depends "apt-get -y install ${depend}"
             done
-            if [[ ${fastmode} = "0" ]]; then
-                error_detect_depends "apt-get -y install build-essential"
+            error_detect_depends "apt-get -y install build-essential"
             fi
             
             echo -e "[${green}Info${plain}] 手动编译 PCRE3 以确保 sniproxy 兼容性..."
