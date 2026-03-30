@@ -240,6 +240,9 @@ install_dependencies(){
         if [[ ${fastmode} = "0" ]]; then
             error_detect_depends "apt-get -y install build-essential"
         fi
+        
+        # 安装PCRE2库
+        error_detect_depends "apt-get -y install libpcre2-dev"
     fi
 }
 
@@ -370,7 +373,14 @@ install_sniproxy(){
                 scl enable devtoolset-6 'rpmbuild --define "_sourcedir `pwd`" --define "_topdir /tmp/sniproxy/rpmbuild" --define "debug_package %{nil}" -ba redhat/sniproxy.spec'
                 error_detect_depends "yum -y install /tmp/sniproxy/rpmbuild/RPMS/x86_64/sniproxy-*.rpm"
             else
-                ./autogen.sh && ./configure --prefix=/usr && make && make install
+                # 设置PKG_CONFIG_PATH环境变量，帮助configure找到PCRE库
+                export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/local/lib/pkgconfig
+                # 尝试使用PCRE2库
+                ./autogen.sh && ./configure --prefix=/usr --with-pcre2 && make && make install
+                if [ $? -ne 0 ]; then
+                    # 如果失败，尝试标准配置
+                    ./autogen.sh && ./configure --prefix=/usr && make && make install
+                fi
             fi
         fi
         if centosversion 6; then
@@ -391,7 +401,14 @@ install_sniproxy(){
                 echo -e "${red}暂不支持${bit}内核，请使用编译模式安装！${plain}" && exit 1
             fi
         else
-            env NAME="sniproxy" DEBFULLNAME="sniproxy" DEBEMAIL="sniproxy@example.com" EMAIL="sniproxy@example.com" ./autogen.sh && ./configure --prefix=/usr && make && make install
+            # 设置PKG_CONFIG_PATH环境变量，帮助configure找到PCRE库
+            export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/local/lib/pkgconfig
+            # 尝试使用PCRE2库
+            env NAME="sniproxy" DEBFULLNAME="sniproxy" DEBEMAIL="sniproxy@example.com" EMAIL="sniproxy@example.com" ./autogen.sh && ./configure --prefix=/usr --with-pcre2 && make && make install
+            if [ $? -ne 0 ]; then
+                # 如果失败，尝试标准配置
+                env NAME="sniproxy" DEBFULLNAME="sniproxy" DEBEMAIL="sniproxy@example.com" EMAIL="sniproxy@example.com" ./autogen.sh && ./configure --prefix=/usr && make && make install
+            fi
         fi  
         download /etc/systemd/system/sniproxy.service https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/sniproxy.service
         systemctl daemon-reload
