@@ -207,14 +207,20 @@ install_dependencies(){
         # 尝试安装PCRE库，处理不同版本的包名差异
         echo -e "[${green}Info${plain}] Installing PCRE libraries..."
         apt-get -y update
-        # 先尝试安装 libpcre2-dev
-        apt-get -y install libpcre2-dev > /dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            # 如果失败，尝试安装 libpcre3-dev
-            apt-get -y install libpcre3-dev > /dev/null 2>&1
+        if debianversion 13; then
+            # Debian 13 只支持 libpcre2-dev
+            apt-get -y install libpcre2-dev > /dev/null 2>&1
+        else
+            # 旧版本Debian/Ubuntu
+            # 先尝试安装 libpcre2-dev
+            apt-get -y install libpcre2-dev > /dev/null 2>&1
             if [ $? -ne 0 ]; then
-                # 如果都失败，尝试安装 pcre-devel
-                apt-get -y install pcre-devel > /dev/null 2>&1
+                # 如果失败，尝试安装 libpcre3-dev
+                apt-get -y install libpcre3-dev > /dev/null 2>&1
+                if [ $? -ne 0 ]; then
+                    # 如果都失败，尝试安装 pcre-devel
+                    apt-get -y install pcre-devel > /dev/null 2>&1
+                fi
             fi
         fi
         
