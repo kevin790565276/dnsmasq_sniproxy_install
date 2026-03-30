@@ -204,16 +204,30 @@ install_dependencies(){
             fi
         fi
     elif check_sys packageManager apt; then
+        # 尝试安装PCRE库，处理不同版本的包名差异
+        echo -e "[${green}Info${plain}] Installing PCRE libraries..."
+        apt-get -y update
+        # 先尝试安装 libpcre2-dev
+        apt-get -y install libpcre2-dev > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            # 如果失败，尝试安装 libpcre3-dev
+            apt-get -y install libpcre3-dev > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                # 如果都失败，尝试安装 pcre-devel
+                apt-get -y install pcre-devel > /dev/null 2>&1
+            fi
+        fi
+        
         if [[ ${fastmode} = "1" ]]; then
             apt_depends=(
-                curl gettext libev-dev libpcre2-dev libpcre3-dev libudns-dev
+                curl gettext libev-dev libudns-dev
             )
         else
             apt_depends=(
-                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libpcre3-dev libudns-dev autoconf devscripts
+                autotools-dev cdbs curl gettext libev-dev libudns-dev autoconf devscripts
             )
         fi
-        apt-get -y update
+        
         for depend in ${apt_depends[@]}; do
             error_detect_depends "apt-get -y install ${depend}"
         done
