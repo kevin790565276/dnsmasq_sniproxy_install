@@ -335,7 +335,45 @@ install_sniproxy(){
     for aport in 80 443; do
         netstat -a -n -p | grep LISTEN | grep -P "\d+\.\d+\.\d+\.\d+:${aport}\s+" > /dev/null && echo -e "[${red}Error${plain}] required port ${aport} already in use\n" && exit 1
     done
+    
+    # 对于Debian 13，优先使用快速安装模式
+    if check_sys packageManager apt && debianversion 13 && [[ ${fastmode} = "0" ]]; then
+        echo -e "[${green}Info${plain}] Detected Debian 13, switching to fast install mode for SNI Proxy..."
+        fastmode=1
+    fi
+    
     install_dependencies
+    
+    # 专门针对PCRE库进行检查和安装
+    echo -e "[${green}Info${plain}] Checking and installing PCRE libraries..."
+    if check_sys packageManager yum; then
+        # 确保安装PCRE库
+        yum -y install pcre pcre-devel > /dev/null 2>&1
+        # 检查PCRE库是否安装成功
+        if ! rpm -qa | grep -E "pcre-devel|pcre"; then
+            echo -e "[${red}Error${plain}] PCRE libraries installation failed."
+            exit 1
+        fi
+    elif check_sys packageManager apt; then
+        # 尝试多种PCRE包名，根据Debian版本选择
+        apt-get -y update
+        if debianversion 13; then
+            # Debian 13 只支持 libpcre2-dev
+            echo -e "[${green}Info${plain}] Installing PCRE2 libraries for Debian 13..."
+            apt-get -y install libpcre2-8-0 libpcre2-dev > /dev/null 2>&1
+            # 检查安装结果
+            dpkg -l | grep -E "libpcre2"
+        else
+            # 旧版本Debian/Ubuntu
+            apt-get -y install libpcre3 libpcre3-dev libpcre2-8-0 libpcre2-dev > /dev/null 2>&1
+        fi
+        # 检查PCRE库是否安装成功
+        if ! dpkg -l | grep -E "libpcre3|libpcre2"; then
+            echo -e "[${red}Error${plain}] PCRE libraries installation failed."
+            exit 1
+        fi
+    fi
+    
     echo "安装SNI Proxy..."
     if check_sys packageManager yum; then
         rpm -qa | grep sniproxy >/dev/null 2>&1
@@ -350,6 +388,12 @@ install_sniproxy(){
     fi
     bit=`uname -m`
     cd /tmp
+    
+    # 显示当前模式和系统信息
+    echo -e "[${green}Info${plain}] System: $(uname -a)"
+    echo -e "[${green}Info${plain}] Fast mode: ${fastmode}"
+    echo -e "[${green}Info${plain}] Architecture: ${bit}"
+    
     if [[ ${fastmode} = "0" ]]; then
         if [ -e sniproxy-0.6.1 ]; then
             rm -rf sniproxy-0.6.1
@@ -357,6 +401,11 @@ install_sniproxy(){
         download /tmp/sniproxy-0.6.1.tar.gz https://github.com/dlundquist/sniproxy/archive/refs/tags/0.6.1.tar.gz
         tar -zxf sniproxy-0.6.1.tar.gz
         cd sniproxy-0.6.1
+        
+        # 显示PCRE库信息
+        echo -e "[${green}Info${plain}] Checking PCRE library information..."
+        pkg-config --list-all | grep -i pcre
+        echo -e "[${green}Info${plain}] PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
     fi
     if check_sys packageManager yum; then
         if [[ ${fastmode} = "1" ]]; then
