@@ -679,11 +679,31 @@ confirm(){
     fi
 }
 
+# 检查是否为Debian 13
+check_debian13() {
+    if check_sys packageManager apt; then
+        local version="$(getversion)"
+        local main_ver=${version%%.*}
+        if [ "$main_ver" -ge "13" ]; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
 if [[ $# = 1 ]];then
     key="$1"
     case $key in
         -i|--install)
         fastmode=0
+        # 对于Debian 13，强制使用快速安装模式
+        if check_debian13; then
+            echo -e "[${green}Info${plain}] Detected Debian 13, forcing fast install mode..."
+            fastmode=1
+        fi
         install_all
         ;;
         -f|--fastinstall)
@@ -700,6 +720,11 @@ if [[ $# = 1 ]];then
         ;;
         -is|--installsniproxy)
         fastmode=0
+        # 对于Debian 13，强制使用快速安装模式
+        if check_debian13; then
+            echo -e "[${green}Info${plain}] Detected Debian 13, forcing fast install mode..."
+            fastmode=1
+        fi
         only_sniproxy
         ;;
         -fs|--fastinstallsniproxy)
