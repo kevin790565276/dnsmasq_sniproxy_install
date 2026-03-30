@@ -20,7 +20,8 @@ cloudfront.net
 uplynk.com
 ip2location.com
 maxmind.com
-omtrdc.netai.com
+omtrdc.net
+ai.com
 openai.com
 chatgpt.com
 oaistatic.com
@@ -105,7 +106,6 @@ dazn-api.com
 dazndn.com
 indazn.com
 daznedge.net
-spotify.com
 scdn.co
 crunchyroll.com
 crackle.com
@@ -127,7 +127,6 @@ spike.com
 go.com
 mtv.com
 mtvnservices.com
-uplynk.com
 lovefilm.com
 turner.com
 amctv.com
