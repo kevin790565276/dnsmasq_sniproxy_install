@@ -144,7 +144,6 @@ sling.com
 movetv.com
 ngtv.io
 pypestream.com
-# 日本
 happyon.jp
 abema.tv
 hulu.jp
@@ -167,7 +166,6 @@ lemino.docomo.ne.jp
 mgs-video.jp
 telasa.jp
 wowow.co.jp
-# 台湾/香港/东南亚
 gamer.com.tw
 bahamut.com.tw
 hinet.net
