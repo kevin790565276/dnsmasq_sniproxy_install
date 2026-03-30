@@ -443,9 +443,27 @@ install_sniproxy(){
     elif check_sys packageManager apt; then
         if [[ ${fastmode} = "1" ]]; then
             if [[ ${bit} = "x86_64" ]]; then
-                download /tmp/sniproxy_0.6.1_amd64.deb https://github.com/myxuchangbin/dnsmasq_sniproxy_install/raw/master/sniproxy/sniproxy_0.6.1_amd64.deb
-                error_detect_depends "dpkg -i --no-debsig /tmp/sniproxy_0.6.1_amd64.deb"
-                rm -f /tmp/sniproxy_0.6.1_amd64.deb
+                # 首先尝试从Debian仓库直接安装sniproxy
+                echo -e "[${green}Info${plain}] Trying to install sniproxy from Debian repository..."
+                apt-get -y update
+                apt-get -y install sniproxy > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    echo -e "[${green}Info${plain}] Sniproxy installed successfully from Debian repository."
+                else
+                    # 如果仓库安装失败，尝试使用预编译包
+                    echo -e "[${yellow}Warning${plain}] Failed to install from repository, trying precompiled package..."
+                    download /tmp/sniproxy_0.6.1_amd64.deb https://github.com/myxuchangbin/dnsmasq_sniproxy_install/raw/master/sniproxy/sniproxy_0.6.1_amd64.deb
+                    # 显示详细的安装信息
+                    echo -e "[${green}Info${plain}] Installing precompiled sniproxy package..."
+                    dpkg -i --no-debsig /tmp/sniproxy_0.6.1_amd64.deb
+                    if [ $? -ne 0 ]; then
+                        # 尝试修复依赖并重新安装
+                        echo -e "[${yellow}Warning${plain}] Fixing dependencies..."
+                        apt-get -y -f install
+                        dpkg -i --no-debsig /tmp/sniproxy_0.6.1_amd64.deb
+                    fi
+                    rm -f /tmp/sniproxy_0.6.1_amd64.deb
+                fi
             else
                 echo -e "${red}暂不支持${bit}内核，请使用编译模式安装！${plain}" && exit 1
             fi
