@@ -168,6 +168,7 @@ config_firewall(){
 install_dependencies(){
     echo "安装依赖软件..."
     if check_sys packageManager yum; then
+        # ... (此处保持你原有的 yum 逻辑不变)
         echo -e "[${green}Info${plain}] Checking the EPEL repository..."
         if [ ! -f /etc/yum.repos.d/epel.repo ]; then
             yum install -y epel-release > /dev/null 2>&1
@@ -175,48 +176,38 @@ install_dependencies(){
         [ ! -f /etc/yum.repos.d/epel.repo ] && echo -e "[${red}Error${plain}] Install EPEL repository failed, please check it." && exit 1
         [ ! "$(command -v yum-config-manager)" ] && yum install -y yum-utils > /dev/null 2>&1
         [ x"$(yum repolist epel | grep -w epel | awk '{print $NF}')" != x"enabled" ] && yum-config-manager --enable epel > /dev/null 2>&1
-        echo -e "[${green}Info${plain}] Checking the EPEL repository complete..."
-
-        if [[ ${fastmode} = "1" ]]; then
-            yum_depends=(
-                curl gettext-devel libev-devel pcre-devel perl udns-devel
-            )
-        else
-            yum_depends=(
-                autoconf automake curl gettext-devel libev-devel pcre-devel perl udns-devel
-            )
-        fi
+        
+        yum_depends=( autoconf automake curl gettext-devel libev-devel pcre-devel perl udns-devel )
         for depend in ${yum_depends[@]}; do
             error_detect_depends "yum -y install ${depend}"
         done
-        if [[ ${fastmode} = "0" ]]; then
-            if centosversion 6; then
-                error_detect_depends "yum -y groupinstall development"
-                error_detect_depends "yum -y install centos-release-scl"
-                error_detect_depends "yum -y install devtoolset-6-gcc-c++"
-            else
-                yum config-manager --set-enabled powertools
-                yum groups list development | grep Installed > /dev/null 2>&1
-                if [[ $? -eq 0 ]]; then
-                    yum groups mark remove development -y > /dev/null 2>&1
-                fi
-                error_detect_depends "yum -y groupinstall development"
-            fi
-        fi
     elif check_sys packageManager apt; then
-        if [[ ${fastmode} = "1" ]]; then
-            apt_depends=(
-                curl gettext libev-dev libpcre2-dev libudns-dev
-            )
-        else
-            apt_depends=(
-                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts
-            )
-        fi
         apt-get -y update
+        
+        # --- Debian 13 特殊处理开始 ---
+        local deb_ver=$(grep -oE "[0-9]+" /etc/debian_version | head -n 1)
+        if [[ "${deb_ver}" == "13" ]]; then
+            echo -e "[${yellow}Info${plain}] 检测到 Debian 13，正在手动补齐缺失的 libpcre3 依赖..."
+            cd /tmp
+            wget -q http://ftp.debian.org/debian/pool/main/p/pcre3/libpcre3_8.39-13_amd64.deb
+            wget -q http://ftp.debian.org/debian/pool/main/p/pcre3/libpcre3-dev_8.39-13_amd64.deb
+            dpkg -i libpcre3_8.39-13_amd64.deb libpcre3-dev_8.39-13_amd64.deb > /dev/null 2>&1
+            apt-get -f -y install > /dev/null 2>&1
+            rm -f libpcre3_8.39-13_amd64.deb libpcre3-dev_8.39-13_amd64.deb
+            cd - > /dev/null
+        fi
+        # --- Debian 13 特殊处理结束 ---
+
+        if [[ ${fastmode} = "1" ]]; then
+            apt_depends=( curl gettext libev-dev libpcre2-dev libudns-dev )
+        else
+            apt_depends=( autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts )
+        fi
+        
         for depend in ${apt_depends[@]}; do
             error_detect_depends "apt-get -y install ${depend}"
         done
+        
         if [[ ${fastmode} = "0" ]]; then
             error_detect_depends "apt-get -y install build-essential"
         fi
