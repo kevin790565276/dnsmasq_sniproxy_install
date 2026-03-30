@@ -179,11 +179,11 @@ install_dependencies(){
 
         if [[ ${fastmode} = "1" ]]; then
             yum_depends=(
-                curl gettext-devel libev-devel pcre-devel pcre perl udns-devel
+                curl gettext-devel libev-devel pcre-devel perl udns-devel
             )
         else
             yum_depends=(
-                autoconf automake curl gettext-devel libev-devel pcre-devel pcre perl udns-devel
+                autoconf automake curl gettext-devel libev-devel pcre-devel perl udns-devel
             )
         fi
         for depend in ${yum_depends[@]}; do
@@ -204,45 +204,22 @@ install_dependencies(){
             fi
         fi
     elif check_sys packageManager apt; then
-        # 尝试安装PCRE库，处理不同版本的包名差异
-        echo -e "[${green}Info${plain}] Installing PCRE libraries..."
-        apt-get -y update
-        if debianversion 13; then
-            # Debian 13 只支持 libpcre2-dev
-            apt-get -y install libpcre2-dev > /dev/null 2>&1
-        else
-            # 旧版本Debian/Ubuntu
-            # 先尝试安装 libpcre2-dev
-            apt-get -y install libpcre2-dev > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                # 如果失败，尝试安装 libpcre3-dev
-                apt-get -y install libpcre3-dev > /dev/null 2>&1
-                if [ $? -ne 0 ]; then
-                    # 如果都失败，尝试安装 pcre-devel
-                    apt-get -y install pcre-devel > /dev/null 2>&1
-                fi
-            fi
-        fi
-        
         if [[ ${fastmode} = "1" ]]; then
             apt_depends=(
-                curl gettext libev-dev libudns-dev
+                curl gettext libev-dev libpcre2-dev libudns-dev
             )
         else
             apt_depends=(
-                autotools-dev cdbs curl gettext libev-dev libudns-dev autoconf devscripts
+                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts
             )
         fi
-        
+        apt-get -y update
         for depend in ${apt_depends[@]}; do
             error_detect_depends "apt-get -y install ${depend}"
         done
         if [[ ${fastmode} = "0" ]]; then
             error_detect_depends "apt-get -y install build-essential"
         fi
-        
-        # 安装PCRE2库
-        error_detect_depends "apt-get -y install libpcre2-dev"
     fi
 }
 
@@ -335,45 +312,7 @@ install_sniproxy(){
     for aport in 80 443; do
         netstat -a -n -p | grep LISTEN | grep -P "\d+\.\d+\.\d+\.\d+:${aport}\s+" > /dev/null && echo -e "[${red}Error${plain}] required port ${aport} already in use\n" && exit 1
     done
-    
-    # 对于Debian 13，优先使用快速安装模式
-    if check_sys packageManager apt && debianversion 13 && [[ ${fastmode} = "0" ]]; then
-        echo -e "[${green}Info${plain}] Detected Debian 13, switching to fast install mode for SNI Proxy..."
-        fastmode=1
-    fi
-    
     install_dependencies
-    
-    # 专门针对PCRE库进行检查和安装
-    echo -e "[${green}Info${plain}] Checking and installing PCRE libraries..."
-    if check_sys packageManager yum; then
-        # 确保安装PCRE库
-        yum -y install pcre pcre-devel > /dev/null 2>&1
-        # 检查PCRE库是否安装成功
-        if ! rpm -qa | grep -E "pcre-devel|pcre"; then
-            echo -e "[${red}Error${plain}] PCRE libraries installation failed."
-            exit 1
-        fi
-    elif check_sys packageManager apt; then
-        # 尝试多种PCRE包名，根据Debian版本选择
-        apt-get -y update
-        if debianversion 13; then
-            # Debian 13 只支持 libpcre2-dev
-            echo -e "[${green}Info${plain}] Installing PCRE2 libraries for Debian 13..."
-            apt-get -y install libpcre2-8-0 libpcre2-dev > /dev/null 2>&1
-            # 检查安装结果
-            dpkg -l | grep -E "libpcre2"
-        else
-            # 旧版本Debian/Ubuntu
-            apt-get -y install libpcre3 libpcre3-dev libpcre2-8-0 libpcre2-dev > /dev/null 2>&1
-        fi
-        # 检查PCRE库是否安装成功
-        if ! dpkg -l | grep -E "libpcre3|libpcre2"; then
-            echo -e "[${red}Error${plain}] PCRE libraries installation failed."
-            exit 1
-        fi
-    fi
-    
     echo "安装SNI Proxy..."
     if check_sys packageManager yum; then
         rpm -qa | grep sniproxy >/dev/null 2>&1
@@ -388,12 +327,6 @@ install_sniproxy(){
     fi
     bit=`uname -m`
     cd /tmp
-    
-    # 显示当前模式和系统信息
-    echo -e "[${green}Info${plain}] System: $(uname -a)"
-    echo -e "[${green}Info${plain}] Fast mode: ${fastmode}"
-    echo -e "[${green}Info${plain}] Architecture: ${bit}"
-    
     if [[ ${fastmode} = "0" ]]; then
         if [ -e sniproxy-0.6.1 ]; then
             rm -rf sniproxy-0.6.1
@@ -401,11 +334,6 @@ install_sniproxy(){
         download /tmp/sniproxy-0.6.1.tar.gz https://github.com/dlundquist/sniproxy/archive/refs/tags/0.6.1.tar.gz
         tar -zxf sniproxy-0.6.1.tar.gz
         cd sniproxy-0.6.1
-        
-        # 显示PCRE库信息
-        echo -e "[${green}Info${plain}] Checking PCRE library information..."
-        pkg-config --list-all | grep -i pcre
-        echo -e "[${green}Info${plain}] PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
     fi
     if check_sys packageManager yum; then
         if [[ ${fastmode} = "1" ]]; then
@@ -422,14 +350,7 @@ install_sniproxy(){
                 scl enable devtoolset-6 'rpmbuild --define "_sourcedir `pwd`" --define "_topdir /tmp/sniproxy/rpmbuild" --define "debug_package %{nil}" -ba redhat/sniproxy.spec'
                 error_detect_depends "yum -y install /tmp/sniproxy/rpmbuild/RPMS/x86_64/sniproxy-*.rpm"
             else
-                # 设置PKG_CONFIG_PATH环境变量，帮助configure找到PCRE库
-                export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/local/lib/pkgconfig
-                # 尝试使用PCRE2库
-                ./autogen.sh && ./configure --prefix=/usr --with-pcre2 && make && make install
-                if [ $? -ne 0 ]; then
-                    # 如果失败，尝试标准配置
-                    ./autogen.sh && ./configure --prefix=/usr && make && make install
-                fi
+                ./autogen.sh && ./configure --prefix=/usr && make && make install
             fi
         fi
         if centosversion 6; then
@@ -443,39 +364,14 @@ install_sniproxy(){
     elif check_sys packageManager apt; then
         if [[ ${fastmode} = "1" ]]; then
             if [[ ${bit} = "x86_64" ]]; then
-                # 首先尝试从Debian仓库直接安装sniproxy
-                echo -e "[${green}Info${plain}] Trying to install sniproxy from Debian repository..."
-                apt-get -y update
-                apt-get -y install sniproxy > /dev/null 2>&1
-                if [ $? -eq 0 ]; then
-                    echo -e "[${green}Info${plain}] Sniproxy installed successfully from Debian repository."
-                else
-                    # 如果仓库安装失败，尝试使用预编译包
-                    echo -e "[${yellow}Warning${plain}] Failed to install from repository, trying precompiled package..."
-                    download /tmp/sniproxy_0.6.1_amd64.deb https://github.com/myxuchangbin/dnsmasq_sniproxy_install/raw/master/sniproxy/sniproxy_0.6.1_amd64.deb
-                    # 显示详细的安装信息
-                    echo -e "[${green}Info${plain}] Installing precompiled sniproxy package..."
-                    dpkg -i --no-debsig /tmp/sniproxy_0.6.1_amd64.deb
-                    if [ $? -ne 0 ]; then
-                        # 尝试修复依赖并重新安装
-                        echo -e "[${yellow}Warning${plain}] Fixing dependencies..."
-                        apt-get -y -f install
-                        dpkg -i --no-debsig /tmp/sniproxy_0.6.1_amd64.deb
-                    fi
-                    rm -f /tmp/sniproxy_0.6.1_amd64.deb
-                fi
+                download /tmp/sniproxy_0.6.1_amd64.deb https://github.com/myxuchangbin/dnsmasq_sniproxy_install/raw/master/sniproxy/sniproxy_0.6.1_amd64.deb
+                error_detect_depends "dpkg -i --no-debsig /tmp/sniproxy_0.6.1_amd64.deb"
+                rm -f /tmp/sniproxy_0.6.1_amd64.deb
             else
                 echo -e "${red}暂不支持${bit}内核，请使用编译模式安装！${plain}" && exit 1
             fi
         else
-            # 设置PKG_CONFIG_PATH环境变量，帮助configure找到PCRE库
-            export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/local/lib/pkgconfig
-            # 尝试使用PCRE2库
-            env NAME="sniproxy" DEBFULLNAME="sniproxy" DEBEMAIL="sniproxy@example.com" EMAIL="sniproxy@example.com" ./autogen.sh && ./configure --prefix=/usr --with-pcre2 && make && make install
-            if [ $? -ne 0 ]; then
-                # 如果失败，尝试标准配置
-                env NAME="sniproxy" DEBFULLNAME="sniproxy" DEBEMAIL="sniproxy@example.com" EMAIL="sniproxy@example.com" ./autogen.sh && ./configure --prefix=/usr && make && make install
-            fi
+            env NAME="sniproxy" DEBFULLNAME="sniproxy" DEBEMAIL="sniproxy@example.com" EMAIL="sniproxy@example.com" ./autogen.sh && ./configure --prefix=/usr && make && make install
         fi  
         download /etc/systemd/system/sniproxy.service https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/sniproxy.service
         systemctl daemon-reload
@@ -697,31 +593,11 @@ confirm(){
     fi
 }
 
-# 检查是否为Debian 13
-check_debian13() {
-    if check_sys packageManager apt; then
-        local version="$(getversion)"
-        local main_ver=${version%%.*}
-        if [ "$main_ver" -ge "13" ]; then
-            return 0
-        else
-            return 1
-        fi
-    else
-        return 1
-    fi
-}
-
 if [[ $# = 1 ]];then
     key="$1"
     case $key in
         -i|--install)
         fastmode=0
-        # 对于Debian 13，强制使用快速安装模式
-        if check_debian13; then
-            echo -e "[${green}Info${plain}] Detected Debian 13, forcing fast install mode..."
-            fastmode=1
-        fi
         install_all
         ;;
         -f|--fastinstall)
@@ -738,11 +614,6 @@ if [[ $# = 1 ]];then
         ;;
         -is|--installsniproxy)
         fastmode=0
-        # 对于Debian 13，强制使用快速安装模式
-        if check_debian13; then
-            echo -e "[${green}Info${plain}] Detected Debian 13, forcing fast install mode..."
-            fastmode=1
-        fi
         only_sniproxy
         ;;
         -fs|--fastinstallsniproxy)
