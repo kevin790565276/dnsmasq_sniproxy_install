@@ -179,11 +179,11 @@ install_dependencies(){
 
         if [[ ${fastmode} = "1" ]]; then
             yum_depends=(
-                curl gettext-devel libev-devel pcre-devel perl udns-devel
+                curl gettext-devel libev-devel pcre-devel pcre perl udns-devel
             )
         else
             yum_depends=(
-                autoconf automake curl gettext-devel libev-devel pcre-devel perl udns-devel
+                autoconf automake curl gettext-devel libev-devel pcre-devel pcre perl udns-devel
             )
         fi
         for depend in ${yum_depends[@]}; do
@@ -206,11 +206,11 @@ install_dependencies(){
     elif check_sys packageManager apt; then
         if [[ ${fastmode} = "1" ]]; then
             apt_depends=(
-                curl gettext libev-dev libpcre2-dev libudns-dev
+                curl gettext libev-dev libpcre2-dev libpcre3-dev libudns-dev
             )
         else
             apt_depends=(
-                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libudns-dev autoconf devscripts
+                autotools-dev cdbs curl gettext libev-dev libpcre2-dev libpcre3-dev libudns-dev autoconf devscripts
             )
         fi
         apt-get -y update
