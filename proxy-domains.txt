@@ -212,27 +212,10 @@ play.google.com
 xn--ngstr-lra8j.com
 ifconfig.co
 challenges.cloudflare.com
-# === Google Core & Accounts ===
-google.com
-www.google.com
-accounts.google.com
-googleusercontent.com
-gstatic.com
-ggpht.com
-recaptcha.net
-www.recaptcha.net
-
-# === Google Core & Accounts ===
-www.google.com
 accounts.google.com
 recaptcha.net
-www.recaptcha.net
-
-# === Google Play Store & Android ===
 android.com
 googleapis.cn
-
-# === Google Gemini & AI ===
 gemini.google.com
 proactivebackend-pa.googleapis.com
 alkaliminer-pa.googleapis.com
